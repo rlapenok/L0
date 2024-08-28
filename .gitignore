@@ -1,0 +1,4 @@
+/target
+*.pdf
+.env
+*.json

@@ -1,0 +1,10 @@
+[postgres_config]
+user="wb_tech"
+password="wb_tech"
+db="L0"
+host="localhost"
+port=5432
+connect_timeout=5 #in sec
+
+[data_saver_config]
+path="./raw_data.json"
