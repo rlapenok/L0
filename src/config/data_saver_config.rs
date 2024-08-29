@@ -3,7 +3,7 @@ use std::{error::Error, future::Future};
 use confique::Config;
 use tokio::fs::File;
 
-use crate::{contracts::saver::ToSaver, data_saver::data_saver::DataSaver};
+use crate::{contracts::saver::ToSaver, data_saver::data_saver::DataWriterReader};
 
 #[derive(Config)]
 pub struct DataSaverConfig {
@@ -11,11 +11,15 @@ pub struct DataSaverConfig {
 }
 
 impl ToSaver for DataSaverConfig {
-    type Output = DataSaver;
+    type Output = DataWriterReader;
     fn to_saver(&self) -> impl Future<Output = Result<Self::Output, Box<dyn Error>>> {
         async {
-            let file = File::create(&self.path).await?;
-            Ok(DataSaver::new(file))
+            let file = File::options()
+                .append(true)
+                .read(true)
+                .open(&self.path)
+                .await?;
+            Ok(DataWriterReader::new(file))
         }
     }
 }

@@ -1,9 +1,24 @@
 use std::{error::Error, future::Future};
 
-use crate::repo::postgres::PostgresRepo;
+use super::models::EntityForSave;
 
-//trait for convert config to repositories
 pub trait ToRepositories {
-    //method for convert struct with config to PostgresRepo
-    fn to_postgres_repo(&self) -> impl Future<Output = Result<PostgresRepo, Box<dyn Error>>>;
+    type Output:RepositoryOrderService;
+    fn to_repositories(
+        &self,
+    ) -> impl Future<Output = Result<Self::Output, Box<dyn Error>>>;
 }
+
+pub trait PostgresRepoOrderService {
+    fn add_order<T: EntityForSave>(
+        &self,
+        entity: &T,
+    ) -> impl Future<Output = Result<(), Box<dyn Error>>>;
+}
+
+pub trait RedisRepoOrderService {}
+
+pub trait RepositoryOrderService {
+    fn add_order<T: EntityForSave>(&self, entity: &T,)->impl Future<Output = Result<(), Box<dyn Error>>>;
+}
+
