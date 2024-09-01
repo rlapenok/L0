@@ -15,3 +15,15 @@ services:
       - POSTGRES_PASSWORD=wb_tech
       - POSTGRES_USER=wb_tech
       - POSTGRES_DB=L0
+  redis:
+    image: docker.io/bitnami/redis:latest
+    container_name: redis
+    ports:
+      - 6379:6379
+    environment:
+      REDIS_PASSWORD: "wb_tech"
+    healthcheck:
+      test: ((echo >/dev/tcp/localhost/6379) &>/dev/null) || exit -1
+      interval: 10s
+      timeout: 10s
+      retries: 3

@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
+use sqlx::{
+    prelude::{FromRow, Type},
+    Decode,
+};
 
-use crate::contracts::models::ItemEntity;
+use crate::domain::models::ItemEntity;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Item {

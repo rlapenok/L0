@@ -6,13 +6,11 @@ use handlers::add_order::add_order;
 use tokio::net::TcpListener;
 
 mod config;
-mod contracts;
-mod converter;
-mod data_saver;
+mod domain;
+mod errors;
 mod handlers;
+mod infrastructure;
 mod model;
-mod repo;
-mod state;
 mod utils;
 
 #[tokio::main]
@@ -26,5 +24,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_state(b);
     let lister = TcpListener::bind("localhost:8080").await?;
     serve(lister, app).await?;
+
     Ok(())
 }

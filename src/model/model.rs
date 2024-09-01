@@ -1,8 +1,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sqlx::{postgres::PgRow, prelude::FromRow, ColumnIndex};
 
 use super::{delivery::Delivery, item::Item, payment::Payment};
-use crate::{contracts::models::EntityForSave, utils::serde_deserde_date_time};
+use crate::{domain::models::EntityForSave, utils::serde_deserde_date_time};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Order {
@@ -26,6 +27,38 @@ pub struct Order {
     #[serde(with = "serde_deserde_date_time")]
     date_created: DateTime<Utc>,
     oof_shard: String,
+}
+
+impl<'r> FromRow<'r, PgRow> for Order {
+    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
+        let delivery = Delivery::from_row(row)?;
+        let payment = Payment::from_row(row)?;
+        let items_str = row.try_get::<Option<String>, &str>("items")?;
+        let item;
+        if let Some(item_str) = items_str {
+            let result = serde_json::from_str::<Vec<Item>>(&item_str).unwrap_or(Vec::new());
+            item = result;
+        } else {
+            item = Vec::new();
+        }
+        use sqlx::Row;
+        Ok(Self {
+            order_uid: row.try_get("order_uid")?,
+            track_number: row.try_get("track_number")?,
+            entry: row.try_get("entry")?,
+            delivery: delivery,
+            payment: payment,
+            items: item,
+            locale: row.try_get("locale")?,
+            internal_signature: row.try_get("internal_signature")?,
+            customer_id: row.try_get("customer_id")?,
+            delivery_service: row.try_get("delivery_service")?,
+            shardkey: row.try_get("shardkey")?,
+            sm_id: row.try_get("sm_id")?,
+            date_created: row.try_get("date_created")?,
+            oof_shard: row.try_get(" oof_shard")?,
+        })
+    }
 }
 
 impl EntityForSave for Order {

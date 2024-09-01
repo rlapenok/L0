@@ -1,38 +1,43 @@
 use std::error::Error;
 
 use confique::Config as ConfigBuilder;
-use data_saver_config::DataSaverConfig;
 use repositories_config::RepositoriesConfig;
 
 use crate::{
-    contracts::{repositories::ToRepositories, saver::ToSaver},
-    state::state::{AppState, AppStateType},
+    domain::{
+        remote_repositories::ToOrderPresentationRepository,
+        services::remote_order_presentation_remote_service::{
+            RemoteOrderRepresentationService, ToOrderRepresentationRemoteRepositoryService,
+        },
+    },
+    infrastructure::services::{OrderPresentationState, RemoteSrv},
 };
 
-mod data_saver_config;
 mod repositories_config;
 mod server_config;
 
-#[derive(ConfigBuilder)]
+#[derive(ConfigBuilder, Debug)]
 pub struct AppConfig {
     #[config(nested)]
     repositories_config: RepositoriesConfig,
-    #[config(nested)]
-    data_saver_config: DataSaverConfig,
 }
 
 impl AppConfig {
     pub fn load() -> Result<Self, Box<dyn Error>> {
         //todo get path from env
         let app_config = Self::from_file("config.toml")?;
+        //println!("{:?}",app_config);
         Ok(app_config)
     }
-    pub async fn to_state(&self) -> Result<AppStateType, Box<dyn Error>> 
-    {
-        let saver = self.data_saver_config.to_saver().await?;
-        let repo = self.repositories_config.to_repositories().await?;
-        let state = AppState::new(saver,repo);
-        let _data = state.read_row_data().await?;
+    pub async fn to_state(self) -> Result<OrderPresentationState<RemoteSrv>, Box<dyn Error>> {
+        let order_presentation_repository = self.repositories_config.to_repository().await?;
+        let order_presentation_repository_service = order_presentation_repository.to_service()?;
+        let cloned = order_presentation_repository_service.clone();
+        //run in other task read_row_data
+        tokio::spawn(async move {
+            cloned.read_and_save_row_data().await;
+        });
+        let state = OrderPresentationState::new(order_presentation_repository_service);
         Ok(state)
     }
 }

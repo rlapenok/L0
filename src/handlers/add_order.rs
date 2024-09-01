@@ -1,17 +1,19 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 
-use crate::{model::model::Order, state::state::AppStateType};
-
-
+use crate::{
+    domain::services::remote_order_presentation_remote_service::RemoteOrderRepresentationService,
+    infrastructure::services::{OrderPresentationState, RemoteSrv},
+    model::model::Order,
+};
 
 pub async fn add_order(
-    State(state): State<AppStateType>,
+    State(state): State<OrderPresentationState<RemoteSrv>>,
     Json(order): Json<Order>,
 ) -> impl IntoResponse {
-   /* let b = serde_json::to_string_pretty(&order).unwrap();
+    /* let b = serde_json::to_string_pretty(&order).unwrap();
     state.saver.write(b).await;*/
-    state.insert(&order).await.unwrap();
-
+    let res = state.remote_service.save_order(&order).await;
+    println!("{:?}", res);
     return StatusCode::OK;
     //1) find into redis (on id)
     //if err=morder exist =>return from handler with msg (order exist) HTTP Code -409 (conflict)

@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
+use sqlx::prelude::FromRow;
 
-use crate::contracts::models::PaymentEntity;
+use crate::domain::models::PaymentEntity;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, FromRow)]
 pub struct Payment {
     //todo mb create type
     transaction: String,

@@ -1,8 +1,12 @@
 use serde::{Deserialize, Serialize};
+use sqlx::{
+    prelude::{FromRow, Type},
+    Decode,
+};
 
-use crate::contracts::models::DeliveriEntity;
+use crate::domain::models::DeliveriEntity;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, FromRow)]
 pub struct Delivery {
     name: String,
     //todo mb create type for phones number
