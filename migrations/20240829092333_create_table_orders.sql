@@ -1,14 +1,19 @@
 -- Create orders table
 CREATE TABLE IF NOT EXISTS orders (
-    order_uid TEXT NOT NULL PRIMARY KEY,
-    track_number TEXT NOT NULL,
-    entry TEXT NOT NULL,
-    locale TEXT NOT NULL,
+    order_uid TEXT PRIMARY KEY,
+    track_number TEXT,
+    entry TEXT,
+    delivery JSONB,
+    payment JSONB,
+    items JSONB,
+    locale TEXT,
     internal_signature TEXT,
-    customer_id TEXT NOT NULL,
-    delivery_service TEXT NOT NULL,
-    shardkey TEXT NOT NULL,
-    sm_id BIGINT NOT NULL,
-    date_created TIMESTAMPTZ NOT NULL,
-    oof_shard TEXT NOT NULL
+    customer_id TEXT,
+    delivery_service TEXT,
+    shardkey TEXT,
+    sm_id BIGINT,
+    date_created TIMESTAMP WITH TIME ZONE,
+    oof_shard TEXT
 );
+
+REVOKE UPDATE ON orders FROM PUBLIC;

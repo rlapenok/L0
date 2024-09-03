@@ -2,15 +2,14 @@ use std::error::Error;
 
 use confique::Config as ConfigBuilder;
 use repositories_config::RepositoriesConfig;
+use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt};
 
 use crate::{
-    domain::{
-        remote_repositories::ToOrderPresentationRepository,
-        services::remote_order_presentation_remote_service::{
-            RemoteOrderRepresentationService, ToOrderRepresentationRemoteRepositoryService,
-        },
+    domain::services::{
+        local_order_presentation_remote_services::ToLocalOrderRepresentationService,
+        remote_order_presentation_remote_service::ToRemoteOrderRepresentationService,
     },
-    infrastructure::services::{OrderPresentationState, RemoteSrv},
+    infrastructure::services::{LocalSrv, OrderPresentationState, RemoteSrv}, utils::tracing_app::build_stdout_tracing_layer,
 };
 
 mod repositories_config;
@@ -29,15 +28,18 @@ impl AppConfig {
         //println!("{:?}",app_config);
         Ok(app_config)
     }
-    pub async fn to_state(self) -> Result<OrderPresentationState<RemoteSrv>, Box<dyn Error>> {
-        let order_presentation_repository = self.repositories_config.to_repository().await?;
-        let order_presentation_repository_service = order_presentation_repository.to_service()?;
-        let cloned = order_presentation_repository_service.clone();
-        //run in other task read_row_data
-        tokio::spawn(async move {
-            cloned.read_and_save_row_data().await;
-        });
-        let state = OrderPresentationState::new(order_presentation_repository_service);
+    pub fn build_tracing(&self){
+
+        let std_out_tracing=build_stdout_tracing_layer();
+        registry().with(std_out_tracing).init();
+
+    }
+    pub async fn to_state(
+        self,
+    ) -> Result<OrderPresentationState<RemoteSrv, LocalSrv>, Box<dyn Error>> {
+        let local_service = self.repositories_config.to_local_service().await?;
+        let remote_service = self.repositories_config.to_remote_service().await?;
+        let state = OrderPresentationState::new(remote_service, local_service);
         Ok(state)
     }
 }

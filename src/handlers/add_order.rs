@@ -1,22 +1,17 @@
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::State, Json};
 
 use crate::{
     domain::services::remote_order_presentation_remote_service::RemoteOrderRepresentationService,
-    infrastructure::services::{OrderPresentationState, RemoteSrv},
-    model::model::Order,
+    errors::remote_service_error::RemoteServiceError,
+    infrastructure::services::{LocalSrv, OrderPresentationState, RemoteSrv},
+    model::{model::Order, responses::AddOrderResponse},
 };
 
 pub async fn add_order(
-    State(state): State<OrderPresentationState<RemoteSrv>>,
+    State(state): State<OrderPresentationState<RemoteSrv, LocalSrv>>,
     Json(order): Json<Order>,
-) -> impl IntoResponse {
-    /* let b = serde_json::to_string_pretty(&order).unwrap();
-    state.saver.write(b).await;*/
-    let res = state.remote_service.save_order(&order).await;
-    println!("{:?}", res);
-    return StatusCode::OK;
-    //1) find into redis (on id)
-    //if err=morder exist =>return from handler with msg (order exist) HTTP Code -409 (conflict)
-    //if err= redis not availabale=> save model in file(in future need check save in redis and postgres) and return Http code 500(internal error)
-    //2) Insert into postgres
+) -> Result<AddOrderResponse, RemoteServiceError> {
+    state.remote_service.save_order(&order).await?;
+    let resposne = AddOrderResponse::default();
+    Ok(resposne)
 }

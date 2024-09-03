@@ -1,22 +1,23 @@
+use std::error::Error;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow};
 
-use crate::{domain::models::EntityForSave, errors::remote_repository_error::RemoteRepositoryError};
+use crate::{domain::models::EntityForSave, errors::remote_service_error::RemoteServiceError};
 
-/*pub trait ToOrderRepresentationRemoteRepositoryService<S>
+pub trait ToRemoteOrderRepresentationService<T>
 where
-    S: RemoteOrderRepresentationService,
+    T: RemoteOrderRepresentationService,
 {
-    fn to_service(self) -> Result<S, Box<dyn Error>>;
-}*/
+    async fn to_remote_service(self) -> Result<T, Box<dyn Error>>;
+}
 
 pub trait RemoteOrderRepresentationService: Send + Clone {
     async fn save_order<E: EntityForSave + Serialize>(
         &self,
         data: &E,
-    ) -> Result<(), RemoteRepositoryError>;
-    async fn get_order<T>(&self, data_uid: String)
+    ) -> Result<(), RemoteServiceError>;
+    async fn get_order<T>(&self, data_uid: String) -> Result<T, RemoteServiceError>
     where
-    T: for<'a> FromRow<'a, PgRow>+Send+Unpin;
+        T: for<'de> Deserialize<'de> + for<'row> FromRow<'row, PgRow> + Send + Unpin;
 }

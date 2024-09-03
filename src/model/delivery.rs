@@ -1,8 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sqlx::{
-    prelude::{FromRow, Type},
-    Decode,
-};
+use sqlx::prelude::FromRow;
 
 use crate::domain::models::DeliveriEntity;
 

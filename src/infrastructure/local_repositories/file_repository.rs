@@ -1,4 +1,4 @@
-use std::{error::Error, sync::Arc};
+use std::{collections::VecDeque, sync::Arc};
 
 use tokio::{
     fs::File,
@@ -8,7 +8,7 @@ use tokio::{
 
 use crate::{
     domain::{
-        local_repositories::in_file_order_presentation_repository::InFileOrderPresentationRepository,
+        local_repositories::in_file_order_presentation_repository::{InFileOrderPresentationRepository, PostgresRawDataFromFile, RedisRawDataInFromFile},
         remote_repositories::Destination,
     },
     errors::local_repository_error::LocalRepositoryError,
@@ -20,50 +20,69 @@ pub struct FileRepository {
     file_redis: Arc<Mutex<File>>,
 }
 impl FileRepository {
-    pub fn new(files: (File, File)) -> Self {
+    pub(crate) fn new(files: (File, File)) -> Self {
         Self {
             file_postgres: Arc::new(Mutex::new(files.0)),
             file_redis: Arc::new(Mutex::new(files.1)),
         }
     }
-    async fn get_guard(&self, files: Destination) -> MutexGuard<'_, File> {
-        match files {
+    async fn get_guard(&self, dest: Destination) -> MutexGuard<'_, File> {
+        match dest {
             Destination::PostgresFile => self.file_postgres.lock().await,
             Destination::RedisFile => self.file_redis.lock().await,
         }
     }
-    async fn save_data(&self,data:String, dest:Destination)->Result<(), LocalRepositoryError>{
-
+    async fn save_row_order_in_file(
+        &self,
+        data: String,
+        dest: Destination,
+    ) -> Result<(), LocalRepositoryError> {
         let mut guard = self.get_guard(dest).await;
         let save_data = data + "\n#\n";
         guard.write_all(save_data.as_bytes()).await?;
         guard.flush().await?;
         Ok(())
-
     }
-}
-
-impl InFileOrderPresentationRepository for FileRepository {
-    async fn get_row_data(
+    async fn read_row_data_from_files(
         &self,
-        file: Destination,
-    ) -> Result<Option<Vec<String>>, LocalRepositoryError> {
+        dest: Destination,
+    ) -> Result<Option<VecDeque<String>>, LocalRepositoryError> {
+        let mut guard = self.get_guard(dest).await;
+
         let mut buff = String::new();
-        let mut guard = self.file_postgres.lock().await;
         guard.read_to_string(&mut buff).await?;
         let data = buff
             .split("\n#\n")
             .filter(|data| !data.is_empty())
             .map(|data| data.to_owned())
-            .collect::<Vec<String>>();
-        //todo delete comment
-        //guard.set_len(0).await?;
+            .collect::<VecDeque<String>>();
+        guard.set_len(0).await?;
         println!("Data previously unprocessed by the server were read successfully");
         Ok(if data.is_empty() { None } else { Some(data) })
     }
-    async fn save_data(&self, data: Vec<String>, dest: Destination) -> Result<(), LocalRepositoryError> {
-        for i in data{
-            self.save_data(i, dest.clone()).await;
+}
+
+impl InFileOrderPresentationRepository for FileRepository {
+    async fn get_raw_orders(
+        &self,
+    ) -> Result<(PostgresRawDataFromFile, RedisRawDataInFromFile), LocalRepositoryError> {
+        let postgres_row_data = self
+            .read_row_data_from_files(Destination::PostgresFile)
+            .await
+            .unwrap();
+        let redis_row_data = self
+            .read_row_data_from_files(Destination::RedisFile)
+            .await
+            .unwrap();
+        Ok((postgres_row_data, redis_row_data))
+    }
+    async fn save_orders(
+        &self,
+        data: Vec<String>,
+        dest: Destination,
+    ) -> Result<(), LocalRepositoryError> {
+        for i in data {
+            self.save_row_order_in_file(i, dest.clone()).await;
         }
         Ok(())
     }

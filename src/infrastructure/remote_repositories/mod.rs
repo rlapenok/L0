@@ -1,4 +1,3 @@
-
 use deadpool_redis::Pool as RedisPool;
 use postgres_order_repository::PostgresOrderRepository;
 use redis_order_repository::RedisOrderRepository;
@@ -13,9 +12,8 @@ use crate::{
             OrderPresentationRemoteRepository,
         },
     },
-    errors::remote_repository_error::RemoteRepositoryError,
+    errors::remote_repository_error::{RemoteRepositoryError, RemoteRepositoryResponse},
 };
-
 
 pub(crate) mod postgres_order_repository;
 pub(crate) mod redis_order_repository;
@@ -41,15 +39,6 @@ impl RemoteRepository<PostgresOrderRepository, RedisOrderRepository> {
     }
 }
 
-/*impl ToOrderRepresentationRemoteRepositoryService<Service>
-    for RemoteRepository<PostgresOrderRepository, RedisOrderRepository>
-{
-    fn to_service(self) -> Result<Service, Box<dyn std::error::Error>> {
-        let service = RemoteService::new(self);
-        Ok(service)
-    }
-}*/
-
 impl OrderPresentationRemoteRepository
     for RemoteRepository<PostgresOrderRepository, RedisOrderRepository>
 {
@@ -59,31 +48,31 @@ impl OrderPresentationRemoteRepository
         key: &str,
         value: &str,
     ) -> Result<(), RemoteRepositoryError> {
-        let postgres_result = self.postgres.save_order(entity).await;
-        if let Err(postgres_err) = postgres_result {
-            println!("{}",postgres_err);
-
-            return Err(postgres_err);
-        }
-        let redis_result = self.redis.save_order(key, value).await;
-        if let Err(redis_err) = redis_result {
-            println!("{}",redis_err);
-            return Err(redis_err);
+        //save in postgres
+        self.postgres.save_order(entity).await?;
+        //save in redis
+        if !self.redis.save_order(key, value).await? {
+            return Err(RemoteRepositoryError::RedisUniqueErrorAndPosgresOk);
         }
         Ok(())
     }
-   async fn get_order<T>(&self, data_uid: String)->Result<T,RemoteRepositoryError> 
-        where  T: for<'a> FromRow<'a, PgRow>+Send+Unpin
-   {
-       /*let redis_result=self.redis.get_order(&order_uid).await;
-       if let Err(err) =redis_result  {
-            println!("{}",err);
-            let postgres_result=self.postgres.get_order::<T>(&order_uid).await;
-            if let Err(err)=postgres_result{
-                    println!("{}",err);
-            }
-       }*/
-        self.postgres.get_order(&data_uid).await
-   }
+    async fn get_order<T>(
+        &self,
+        data_uid: String,
+    ) -> Result<RemoteRepositoryResponse<T>, RemoteRepositoryError>
+    where
+        T: for<'row> FromRow<'row, PgRow> + Send + Unpin,
+    {
+        //find in redis
+        let redis_result = self.redis.get_order(&data_uid).await;
 
+        match redis_result {
+            Ok(value) => Ok(RemoteRepositoryResponse::OrderFromRedis(value)),
+
+            Err(_) => {
+                let order = self.postgres.get_order::<T>(&data_uid).await?;
+                Ok(RemoteRepositoryResponse::OrderFromPostgres(order))
+            }
+        }
+    }
 }

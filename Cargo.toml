@@ -9,6 +9,8 @@ tokio-postgres = "0.7.11"
 serde_json = "1.0.127"
 redis = "0.26.1"
 deadpool-redis = "0.16.0"
+downcast-rs = "1.2.1"
+tracing = "0.1.40"
 
 [dependencies.confique]
 version="0.2.5"
@@ -17,7 +19,7 @@ features=["toml"]
 
 [dependencies.tokio]
 version = "1.40.0"
-features = ["macros", "rt-multi-thread","signal","time","sync","fs"]
+features = ["macros", "rt-multi-thread","signal","time","sync","fs","macros"]
 
 [dependencies.serde]
 version="1.0.209"
@@ -30,3 +32,7 @@ features=["serde"]
 [dependencies.sqlx]
 version="0.8.1"
 features=["postgres","runtime-tokio","chrono"] 
+
+[dependencies.tracing-subscriber]
+version="0.3.18"
+features=["env-filter"]

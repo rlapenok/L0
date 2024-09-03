@@ -1,35 +1,41 @@
 use std::{error::Error, time::Duration};
 
-use crate::{
-    domain::remote_repositories::ToOrderPresentationRepository,
-    infrastructure::{
-        remote_repositories::OrderPresentationRemoteRepository, services::RemoteRepository,
-    },
-};
 use confique::Config;
 use deadpool_redis::{
     Config as RedisPoolConfig, ConnectionAddr, ConnectionInfo, Pool as RedisPool,
     RedisConnectionInfo, Runtime::Tokio1,
 };
-use sqlx::{pool::PoolOptions, postgres::PgConnectOptions, Postgres};
+use sqlx::{pool::PoolOptions, postgres::PgConnectOptions, Pool, Postgres};
 use tokio::fs::File;
 
+use crate::{
+    domain::services::{
+        local_order_presentation_remote_services::ToLocalOrderRepresentationService,
+        remote_order_presentation_remote_service::ToRemoteOrderRepresentationService,
+    },
+    infrastructure::{
+        local_repositories:: LocalRepository,
+        remote_repositories::RemoteRepository,
+        services::{order_presentation_remote_service::RemoteService, LocalSrv, RemoteSrv},
+    },
+};
+
 #[derive(Config, Debug)]
-pub(crate) struct RepositoriesConfig {
+pub (crate)struct RepositoriesConfig {
     #[config(nested)]
     postgres_config: PostgresRepoConfig,
     #[config(nested)]
     redis_config: RedisRepoConfig,
     #[config(nested)]
-    data_saver_writer_config: DataSaverWriterConfig,
+    local_config: LocalRepoConfig,
 }
 #[derive(Config, Debug)]
-pub struct DataSaverWriterConfig {
+pub struct LocalRepoConfig {
     path1: String,
     path2: String,
 }
 
-impl DataSaverWriterConfig {
+impl LocalRepoConfig {
     async fn get_files(&self) -> Result<(File, File), Box<dyn Error>> {
         let postgres_file = File::options()
             .append(true)
@@ -50,7 +56,7 @@ impl DataSaverWriterConfig {
 }
 
 #[derive(Config, Debug)]
-struct PostgresRepoConfig {
+pub (crate)struct PostgresRepoConfig {
     host: String,
     port: u16,
     login: String,
@@ -62,7 +68,7 @@ struct PostgresRepoConfig {
 }
 
 impl PostgresRepoConfig {
-    async fn to_connect_opt(&self) -> PgConnectOptions {
+    fn to_connect_opt(&self) -> PgConnectOptions {
         PgConnectOptions::new()
             .host(&self.host)
             .port(self.port)
@@ -70,7 +76,7 @@ impl PostgresRepoConfig {
             .username(&self.login)
             .password(&self.password)
     }
-    async fn to_pool_opt(&self) -> PoolOptions<Postgres> {
+    fn to_pool_opt(&self) -> PoolOptions<Postgres> {
         PoolOptions::new()
             .max_lifetime(Some(Duration::from_secs(self.max_lifetime_sec)))
             .idle_timeout(Some(Duration::from_secs(self.idle_timeout_sec)))
@@ -79,13 +85,17 @@ impl PostgresRepoConfig {
             //todo Setup in config
             .acquire_timeout(Duration::from_secs(3))
     }
+    pub async fn create_pool(&self) -> Result<Pool<Postgres>, sqlx::Error> {
+        let pool_opt = self.to_pool_opt();
+        let conn_opt = self.to_connect_opt();
+        pool_opt.connect_with(conn_opt).await
+    }
 }
 
 #[derive(Config, Debug)]
-struct RedisRepoConfig {
+pub(crate) struct RedisRepoConfig {
     host: String,
     port: u16,
-    login: String,
     password: String,
     db: i64,
     max_connections: usize,
@@ -118,15 +128,19 @@ impl RedisRepoConfig {
     }
 }
 
-//convert RepositoriesConfig to OrderPresentationRepository trait
-impl ToOrderPresentationRepository<RemoteRepository> for RepositoriesConfig {
-    async fn to_repository(self) -> Result<RemoteRepository, Box<dyn Error>> {
-        let connect_opt = self.postgres_config.to_connect_opt().await;
-        let pool_opt = self.postgres_config.to_pool_opt().await;
-        let files = self.data_saver_writer_config.get_files().await?;
-        let postgres_pool = pool_opt.connect_with(connect_opt).await?;
+impl ToRemoteOrderRepresentationService<RemoteSrv> for RepositoriesConfig {
+    async fn to_remote_service(self) -> Result<RemoteSrv, Box<dyn Error>> {
+        let postgres_pool = self.postgres_config.create_pool().await?;
         let redis_pool = self.redis_config.create_pool().await?;
-        let repo = OrderPresentationRemoteRepository::new(postgres_pool, redis_pool, files);
-        Ok(repo)
+        let repository = RemoteRepository::new(postgres_pool, redis_pool);
+        Ok(RemoteService::new(repository))
+    }
+}
+
+impl ToLocalOrderRepresentationService<LocalSrv> for RepositoriesConfig {
+    async fn to_local_service(&self) -> Result<LocalSrv, Box<dyn Error>> {
+        let files = self.local_config.get_files().await?;
+        let repository = LocalRepository::new(files);
+        Ok(LocalSrv::new(repository))
     }
 }

@@ -1,9 +1,13 @@
 use chrono::{DateTime, Utc};
+use downcast_rs::{impl_downcast, Downcast, DowncastSync};
+use serde::Serialize;
 
-pub trait EntityForSave {
-    type Delivery: DeliveriEntity;
-    type Payment: PaymentEntity;
-    type Item: ItemEntity;
+use crate::model::{delivery::Delivery, item::Item, payment::Payment};
+
+pub trait EntityForSave:Downcast+DowncastSync {
+    type Delivery: DeliveriEntity + Serialize;
+    type Payment: PaymentEntity + Serialize;
+    type Item: ItemEntity + Serialize;
     fn get_order_uid(&self) -> &str;
     fn get_track_number(&self) -> &str;
     fn get_entry(&self) -> &str;
@@ -19,6 +23,11 @@ pub trait EntityForSave {
     fn get_date_created(&self) -> DateTime<Utc>;
     fn get_oof_shard(&self) -> &str;
 }
+
+
+//impl_downcast!(concrete  EntityForSave assoc Payment=Payment,Delivery=Delivery,Item=Item);
+impl_downcast!(sync concrete  EntityForSave assoc Payment=Payment,Delivery=Delivery,Item=Item);
+
 
 pub trait ItemEntity {
     fn get_chrt_id(&self) -> i64;
