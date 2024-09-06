@@ -2,6 +2,7 @@ use deadpool_redis::Pool as RedisPool;
 use postgres_order_repository::PostgresOrderRepository;
 use redis_order_repository::RedisOrderRepository;
 use sqlx::{postgres::PgRow, FromRow, Pool as PoolPostgres, Postgres};
+use tracing::{debug, instrument, trace};
 
 use crate::{
     domain::{
@@ -42,37 +43,89 @@ impl RemoteRepository<PostgresOrderRepository, RedisOrderRepository> {
 impl OrderPresentationRemoteRepository
     for RemoteRepository<PostgresOrderRepository, RedisOrderRepository>
 {
+    #[instrument(
+        skip(self, order, order_uid, value),
+        name = "OrderPresentationRemoteRepository::save_order"
+    )]
     async fn save_order<E: EntityForSave>(
         &self,
-        entity: &E,
-        key: &str,
+        order: &E,
+        order_uid: &str,
         value: &str,
     ) -> Result<(), RemoteRepositoryError> {
+        trace!("Start save order");
         //save in postgres
-        self.postgres.save_order(entity).await?;
+        self.postgres
+            .save_order(order)
+            .await
+            .inspect_err(|err| trace!("Error when saving order in Postgres:{}", err))?;
         //save in redis
-        if !self.redis.save_order(key, value).await? {
+        if !self
+            .redis
+            .save_order(order_uid, value)
+            .await
+            .inspect_err(|err| trace!("Error when saving order in Redis:{}", err))?
+        {
             return Err(RemoteRepositoryError::RedisUniqueErrorAndPosgresOk);
         }
+        trace!("Order was saved");
         Ok(())
     }
+    #[instrument(skip(self), name = "OrderPresentationRemoteRepository::get_order")]
     async fn get_order<T>(
         &self,
-        data_uid: String,
+        order_uid: &str,
     ) -> Result<RemoteRepositoryResponse<T>, RemoteRepositoryError>
     where
         T: for<'row> FromRow<'row, PgRow> + Send + Unpin,
     {
+        trace!("Start get orderd");
         //find in redis
-        let redis_result = self.redis.get_order(&data_uid).await;
+        let redis_result = self.redis.get_order(order_uid).await;
 
         match redis_result {
-            Ok(value) => Ok(RemoteRepositoryResponse::OrderFromRedis(value)),
+            Ok(value) => {
+                trace!("Order was received from Redis");
+                Ok(RemoteRepositoryResponse::OrderFromRedis(value))
+            }
 
-            Err(_) => {
-                let order = self.postgres.get_order::<T>(&data_uid).await?;
-                Ok(RemoteRepositoryResponse::OrderFromPostgres(order))
+            Err(err) => {
+                trace!("Order was received from Redis with error:{}", err);
+                let order = self
+                    .postgres
+                    .get_order::<T>(order_uid)
+                    .await
+                    .inspect_err(|err| {
+                        trace!("Order was received from Postgres with error:{}", err)
+                    })?;
+                trace!("Order was received from Postgres with Redis Error:{}", err);
+                Ok(RemoteRepositoryResponse::OrderFromPostgres(
+                    order,
+                    err.to_string(),
+                ))
             }
         }
+    }
+    #[instrument(
+        skip(self, order_uid, order),
+        name = "OrderPresentationRemoteRepository::save_order_in_redis"
+    )]
+    async fn save_order_in_redis(
+        &self,
+        order_uid: &str,
+        order: &str,
+    ) -> Result<(), RemoteRepositoryError> {
+        let result = self
+            .redis
+            .save_order(order, order_uid)
+            .await
+            .inspect_err(|err| {
+                trace!("Order was received from Redis with error:{}", err);
+            })?;
+        if !result {
+            return Err(RemoteRepositoryError::RedisUniqueErrorAndPosgresOk);
+        }
+        debug!("Order saved successfully ");
+        Ok(())
     }
 }

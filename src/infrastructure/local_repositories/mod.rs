@@ -1,16 +1,21 @@
-use std::collections::VecDeque;
-
 use file_repository::FileRepository;
 use in_memory_repository::InMemoryReposiory;
+use std::collections::VecDeque;
 use tokio::fs::File;
+use tracing::{debug, instrument};
 
 use crate::{
-    domain::local_repositories::{
-        in_file_order_presentation_repository::{InFileOrderPresentationRepository, PostgresRawDataFromFile, RedisRawDataInFromFile},
-        in_memory_order_presentation_repository::{
-            Entity, InMemoryOrderPresentationRepository, PostgresRawDataInMemory, RedisRawDataInMemory
+    domain::{
+        local_repositories::{
+            in_file_order_presentation_repository::{
+                InFileOrderPresentationRepository, PostgresRawDataFromFile, RedisRawDataInFromFile,
+            },
+            in_memory_order_presentation_repository::{
+                Entity, InMemoryOrderPresentationRepository, RawOrdersInMemory,
+            },
+            OrderPresentationLocalRepository,
         },
-        OrderPresentationLocalRepository,
+        models::Destination,
     },
     errors::local_repository_error::LocalRepositoryError,
 };
@@ -33,25 +38,34 @@ impl LocalRepository {
 }
 
 impl OrderPresentationLocalRepository for LocalRepository {
-
-    async fn read_raw_orders_from_files(&self)->Result<(PostgresRawDataFromFile,RedisRawDataInFromFile),LocalRepositoryError> {
-        let raw_orders=self.in_file.get_raw_orders().await?;
+    #[instrument(
+        skip(self),
+        name = "OrderPresentationLocalRepository::read_raw_orders_from_files"
+    )]
+    async fn read_raw_orders_from_files(
+        &self,
+    ) -> Result<(PostgresRawDataFromFile, RedisRawDataInFromFile), LocalRepositoryError> {
+        debug!("Starting to read raw orders from files");
+        let raw_orders = self.in_file.get_raw_orders().await.inspect_err(|err| {
+            debug!("Error when reading orders from files:{}", err);
+        })?;
+        debug!("Orders were successfully read from files");
         Ok(raw_orders)
     }
-
-    async fn save_orders_in_memory(&self,orders:(VecDeque<Box<Entity>>,VecDeque<Box<Entity>>)){
-            self.in_memory.save_raw_orders(orders).await;
+    #[instrument(
+        skip(self, orders),
+        name = "OrderPresentationLocalRepository::save_orders_in_memory"
+    )]
+    async fn save_orders_in_memory(&self, orders: (VecDeque<Box<Entity>>, VecDeque<Box<Entity>>)) {
+        self.in_memory.save_raw_orders(orders).await;
     }
-    fn get_postgres_from_memory(&self) -> PostgresRawDataInMemory {
-        self.in_memory.get_postgres_from_memory()
+    fn get_raw_orders_from_memory(&self, dest: Destination) -> RawOrdersInMemory {
+        self.in_memory.get_raw_orders(dest)
     }
-    async fn save_postgres_in_memory(&self, order: Box<Entity>) {
-        self.in_memory.save_postgres(order).await
+    async fn save_row_orders_in_file(&self, orders: VecDeque<String>, dest: Destination) {
+        self.in_file.save_orders(orders, dest).await;
     }
-    fn get_redis_from_memory(&self) -> RedisRawDataInMemory {
-        self.in_memory.get_redis_from_memory()
-    }
-    async fn save_redis_in_memory(&self, order: Box<Entity>) {
-        self.in_memory.save_redis(order).await
+    async fn save_in_memory(&self, dest: Destination, order: Box<Entity>) {
+        self.in_memory.save_raw_order(dest, order).await
     }
 }

@@ -1,20 +1,16 @@
 use std::collections::VecDeque;
 
-use crate::{
-    domain::remote_repositories::Destination, errors::local_repository_error::LocalRepositoryError,
-};
+use crate::{domain::models::Destination, errors::local_repository_error::LocalRepositoryError};
 
 pub type PostgresRawDataFromFile = Option<VecDeque<String>>;
 pub type RedisRawDataInFromFile = Option<VecDeque<String>>;
 
-
+//trait for save and get raw in files when server up and shutdown
 pub trait InFileOrderPresentationRepository: Send + Sync + Clone {
-    async fn save_orders(
-        &self,
-        data: Vec<String>,
-        file: Destination,
-    ) -> Result<(), LocalRepositoryError>;
+    //method for save order when server graceful shutdown
+    async fn save_orders(&self, raw_orders: VecDeque<String>, file: Destination);
+    //get raw orders when server up
     async fn get_raw_orders(
         &self,
-    ) -> Result<(PostgresRawDataFromFile,PostgresRawDataFromFile), LocalRepositoryError>;
+    ) -> Result<(PostgresRawDataFromFile, PostgresRawDataFromFile), LocalRepositoryError>;
 }

@@ -5,6 +5,7 @@ use deadpool_redis::{
     Config as RedisPoolConfig, ConnectionAddr, ConnectionInfo, Pool as RedisPool,
     RedisConnectionInfo, Runtime::Tokio1,
 };
+
 use sqlx::{pool::PoolOptions, postgres::PgConnectOptions, Pool, Postgres};
 use tokio::fs::File;
 
@@ -14,14 +15,14 @@ use crate::{
         remote_order_presentation_remote_service::ToRemoteOrderRepresentationService,
     },
     infrastructure::{
-        local_repositories:: LocalRepository,
+        local_repositories::LocalRepository,
         remote_repositories::RemoteRepository,
         services::{order_presentation_remote_service::RemoteService, LocalSrv, RemoteSrv},
     },
 };
 
 #[derive(Config, Debug)]
-pub (crate)struct RepositoriesConfig {
+pub(crate) struct RepositoriesConfig {
     #[config(nested)]
     postgres_config: PostgresRepoConfig,
     #[config(nested)]
@@ -42,21 +43,19 @@ impl LocalRepoConfig {
             .read(true)
             .create(true)
             .open(&self.path1)
-            .await
-            .unwrap();
+            .await?;
         let redis_file = File::options()
             .append(true)
             .read(true)
             .create(true)
             .open(&self.path2)
-            .await
-            .unwrap();
+            .await?;
         Ok((postgres_file, redis_file))
     }
 }
 
 #[derive(Config, Debug)]
-pub (crate)struct PostgresRepoConfig {
+pub(crate) struct PostgresRepoConfig {
     host: String,
     port: u16,
     login: String,
@@ -104,12 +103,14 @@ pub(crate) struct RedisRepoConfig {
 }
 
 impl RedisRepoConfig {
-    async fn create_pool(self) -> Result<RedisPool, Box<dyn Error>> {
-        let connection_address = ConnectionAddr::Tcp(self.host, self.port);
-        let mut redis_connection_info = RedisConnectionInfo::default();
-        redis_connection_info.db = self.db;
-        // redis_connection_info.username = Some(self.login);
-        redis_connection_info.password = Some(self.password);
+    async fn create_pool(&self) -> Result<RedisPool, Box<dyn Error>> {
+        let connection_address = ConnectionAddr::Tcp(self.host.clone(), self.port);
+        RedisConnectionInfo::default();
+        let redis_connection_info = RedisConnectionInfo {
+            db: self.db,
+            password: Some(self.password.clone()),
+            ..Default::default()
+        };
         let connection_info = ConnectionInfo {
             addr: connection_address,
             redis: redis_connection_info,
@@ -129,7 +130,7 @@ impl RedisRepoConfig {
 }
 
 impl ToRemoteOrderRepresentationService<RemoteSrv> for RepositoriesConfig {
-    async fn to_remote_service(self) -> Result<RemoteSrv, Box<dyn Error>> {
+    async fn to_remote_service(&self) -> Result<RemoteSrv, Box<dyn Error>> {
         let postgres_pool = self.postgres_config.create_pool().await?;
         let redis_pool = self.redis_config.create_pool().await?;
         let repository = RemoteRepository::new(postgres_pool, redis_pool);

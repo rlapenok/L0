@@ -8,7 +8,7 @@ where
     let data = String::deserialize(deserializer)?;
     DateTime::parse_from_rfc3339(&data)
         .map(|dt| dt.with_timezone(&Utc))
-        .map_err(|err| Error::custom(err))
+        .map_err(Error::custom)
 }
 pub fn serialize<S>(data_time: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error>
 where

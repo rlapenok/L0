@@ -2,6 +2,7 @@ use std::{error::Error, fmt::Display};
 
 use super::local_repository_error::LocalRepositoryError;
 
+//errors for local service
 #[derive(Debug)]
 pub enum LocalServiceErrors {
     LocalRepositoryError(LocalRepositoryError),

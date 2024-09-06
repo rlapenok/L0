@@ -2,9 +2,17 @@ use chrono::{DateTime, Utc};
 use downcast_rs::{impl_downcast, Downcast, DowncastSync};
 use serde::Serialize;
 
-use crate::model::{delivery::Delivery, item::Item, payment::Payment};
+use crate::models::{delivery::Delivery, item::Item, payment::Payment};
 
-pub trait EntityForSave:Downcast+DowncastSync {
+//enum for save/get order direction
+#[derive(Clone, Debug)]
+pub enum Destination {
+    Postgres,
+    Redis,
+}
+
+//traits for save input data from request
+pub trait EntityForSave: Downcast + DowncastSync {
     type Delivery: DeliveriEntity + Serialize;
     type Payment: PaymentEntity + Serialize;
     type Item: ItemEntity + Serialize;
@@ -24,11 +32,9 @@ pub trait EntityForSave:Downcast+DowncastSync {
     fn get_oof_shard(&self) -> &str;
 }
 
-
-//impl_downcast!(concrete  EntityForSave assoc Payment=Payment,Delivery=Delivery,Item=Item);
 impl_downcast!(sync concrete  EntityForSave assoc Payment=Payment,Delivery=Delivery,Item=Item);
 
-
+#[allow(dead_code)]
 pub trait ItemEntity {
     fn get_chrt_id(&self) -> i64;
     fn get_track_number(&self) -> &str;
@@ -42,6 +48,8 @@ pub trait ItemEntity {
     fn get_brand(&self) -> &str;
     fn get_status(&self) -> i64;
 }
+#[allow(dead_code)]
+
 pub trait DeliveriEntity {
     fn get_name(&self) -> &str;
     fn get_phone(&self) -> &str;
@@ -51,6 +59,8 @@ pub trait DeliveriEntity {
     fn get_region(&self) -> &str;
     fn get_email(&self) -> &str;
 }
+#[allow(dead_code)]
+
 pub trait PaymentEntity {
     fn get_transaction(&self) -> &str;
     fn get_request_id(&self) -> Option<&str>;

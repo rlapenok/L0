@@ -1,21 +1,25 @@
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 use crate::domain::models::ItemEntity;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Validate)]
+#[serde(deny_unknown_fields)]
 pub struct Item {
     chrt_id: i64,
+    #[validate(length(min = 1, message = "Can not be empty"))]
     track_number: String,
     price: i64,
-    //todo mb create type
+    #[validate(length(min = 1, message = "Can not be empty"))]
     rid: String,
+    #[validate(length(min = 1, message = "Can not be empty"))]
     name: String,
     sale: i64,
-    //todo type to know
+    #[validate(length(min = 1, message = "Can not be empty"))]
     size: String,
     total_price: i64,
     nm_id: i64,
-    //todo mb create type
+    #[validate(length(min = 1, message = "Can not be empty"))]
     brand: String,
     status: i64,
 }

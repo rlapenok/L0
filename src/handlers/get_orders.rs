@@ -1,21 +1,33 @@
 use axum::extract::{Query, State};
+use tracing::{error, info, instrument};
 
 use crate::{
-    domain::services::remote_order_presentation_remote_service::RemoteOrderRepresentationService,
-    errors::remote_service_error::RemoteServiceError,
+    errors::remote_service_error::RemoteServiceErrorResponse,
     infrastructure::services::{LocalSrv, OrderPresentationState, RemoteSrv},
-    model::{model::Order, query_params::QueryParams},
+    models::{
+        model::Order,
+        query_params::QueryParams,
+        responses::{OrderResponse, OrderStatus},
+    },
 };
-
+//handler for get order on order_uid
+#[instrument(skip(state,params),fields(order_uid=params.get_order_uid()),name="get_order")]
 pub async fn get_orders(
     State(state): State<OrderPresentationState<RemoteSrv, LocalSrv>>,
     Query(params): Query<QueryParams>,
-) -> Result<Order, RemoteServiceError> {
+) -> Result<OrderResponse, RemoteServiceErrorResponse> {
     let order_uid = params.get_order_uid();
-    let order = state
-        .remote_service
-        .get_order::<Order>(order_uid.to_owned())
-        .await?;
-
-    Ok(order)
+    info!("Start get order");
+    let result = state
+        .get_order::<Order>(order_uid)
+        .await
+        .inspect_err(|err| error!("Error while get_order:{}", err))?;
+    info!("Get order-OK");
+    Ok(OrderResponse::new(
+        Some(result.0),
+        None,
+        result.1,
+        None,
+        OrderStatus::Accepted,
+    ))
 }

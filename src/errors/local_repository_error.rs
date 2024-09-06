@@ -1,5 +1,6 @@
 use std::{error::Error, fmt::Display};
 
+//errors for local repository
 #[derive(Debug)]
 pub enum LocalRepositoryError {
     Error(std::io::Error),

@@ -1,18 +1,24 @@
 use serde::{Deserialize, Serialize};
-use sqlx::prelude::FromRow;
+use validator::Validate;
 
 use crate::domain::models::DeliveriEntity;
 
-#[derive(Serialize, Deserialize, Debug, FromRow)]
+#[derive(Serialize, Deserialize, Debug, Validate)]
+#[serde(deny_unknown_fields)]
 pub struct Delivery {
+    #[validate(length(min = 1, message = "Can not be empty"))]
     name: String,
-    //todo mb create type for phones number
+    #[validate(length(min = 1, message = "Can not be empty"))]
     phone: String,
+    #[validate(length(min = 1, message = "Can not be empty"))]
     zip: String,
+    #[validate(length(min = 1, message = "Can not be empty"))]
     city: String,
+    #[validate(length(min = 1, message = "Can not be empty"))]
     address: String,
+    #[validate(length(min = 1, message = "Can not be empty"))]
     region: String,
-    //todo mb create type for emails
+    #[validate(length(min = 1, message = "Can not be empty"))]
     email: String,
 }
 

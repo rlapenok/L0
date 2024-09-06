@@ -1,17 +1,25 @@
-use axum::{extract::State, Json};
+use axum::extract::State;
+use tracing::{error, info, instrument};
 
 use crate::{
-    domain::services::remote_order_presentation_remote_service::RemoteOrderRepresentationService,
-    errors::remote_service_error::RemoteServiceError,
+    domain::models::EntityForSave,
+    errors::remote_service_error::RemoteServiceErrorResponse,
     infrastructure::services::{LocalSrv, OrderPresentationState, RemoteSrv},
-    model::{model::Order, responses::AddOrderResponse},
+    models::{
+        model::{JsonOrder, Order},
+        responses::OrderResponse,
+    },
 };
-
+//handler for add order in databases
+#[instrument(skip(state,order),fields(order_uid=order.get_order_uid()),name="add_order")]
 pub async fn add_order(
     State(state): State<OrderPresentationState<RemoteSrv, LocalSrv>>,
-    Json(order): Json<Order>,
-) -> Result<AddOrderResponse, RemoteServiceError> {
-    state.remote_service.save_order(&order).await?;
-    let resposne = AddOrderResponse::default();
-    Ok(resposne)
+    JsonOrder(order): JsonOrder<Order>,
+) -> Result<OrderResponse, RemoteServiceErrorResponse> {
+    info!("Start save order");
+    state.save_order(order).await.inspect_err(|err| {
+        error!("Error while save order:{}", err);
+    })?;
+    info!("Order save");
+    Ok(OrderResponse::default())
 }

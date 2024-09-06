@@ -1,51 +1,60 @@
 use axum::{
+    extract::{rejection::JsonRejection, FromRequest, Request},
     http::StatusCode,
-    response::{IntoResponse, Response},
-    Json as AxumJson,
+    Json,
 };
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgRow, prelude::FromRow, types::Json, Row};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use sqlx::{postgres::PgRow, prelude::FromRow, types::Json as SqlxJson, Row};
+use validator::Validate;
 
 use super::{delivery::Delivery, item::Item, payment::Payment};
 use crate::{domain::models::EntityForSave, utils::serde_deserde_date_time};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Validate)]
+#[serde(deny_unknown_fields)]
 pub struct Order {
-    //todo create type
+    #[validate(length(min = 1, message = "Can not be empty"))]
     order_uid: String,
-    //todo create type
+    #[validate(length(min = 1, message = "Can not be empty"))]
     track_number: String,
+    #[validate(length(min = 1, message = "Can not be empty"))]
     entry: String,
+    #[validate(nested)]
     delivery: Delivery,
+    #[validate(nested)]
     payment: Payment,
+    #[validate(nested)]
     items: Vec<Item>,
-    //todo create type
+    #[validate(length(min = 1, message = "Can not be empty"))]
     locale: String,
     internal_signature: Option<String>,
+    #[validate(length(min = 1, message = "Can not be empty"))]
     customer_id: String,
-    //todo create type
+    #[validate(length(min = 1, message = "Can not be empty"))]
     delivery_service: String,
+    #[validate(length(min = 1, message = "Can not be empty"))]
     shardkey: String,
     sm_id: i64,
     //todo create Date
     #[serde(with = "serde_deserde_date_time")]
     date_created: DateTime<Utc>,
+    #[validate(length(min = 1, message = "Can not be empty"))]
     oof_shard: String,
 }
 
 impl<'r> FromRow<'r, PgRow> for Order {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        let delivery = row.try_get::<Json<Delivery>, &str>("delivery")?.0;
-        let payment = row.try_get::<Json<Payment>, &str>("payment")?.0;
-        let items = row.try_get::<Json<Vec<Item>>, &str>("items")?.0;
+        let delivery = row.try_get::<SqlxJson<Delivery>, &str>("delivery")?.0;
+        let payment = row.try_get::<SqlxJson<Payment>, &str>("payment")?.0;
+        let items = row.try_get::<SqlxJson<Vec<Item>>, &str>("items")?.0;
         Ok(Self {
             order_uid: row.try_get("order_uid")?,
             track_number: row.try_get("track_number")?,
             entry: row.try_get("entry")?,
-            delivery: delivery,
-            payment: payment,
-            items: items,
+            delivery,
+            payment,
+            items,
             locale: row.try_get("locale")?,
             internal_signature: row.try_get("internal_signature")?,
             customer_id: row.try_get("customer_id")?,
@@ -55,6 +64,27 @@ impl<'r> FromRow<'r, PgRow> for Order {
             date_created: row.try_get("date_created")?,
             oof_shard: row.try_get("oof_shard")?,
         })
+    }
+}
+
+pub struct JsonOrder<J>(pub J);
+
+#[async_trait::async_trait]
+impl<T, S> FromRequest<S> for JsonOrder<T>
+where
+    S: Send + Sync,
+    T: DeserializeOwned + Validate,
+    Json<T>: FromRequest<S, Rejection = JsonRejection>,
+{
+    type Rejection = (StatusCode, &'static str);
+
+    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
+        let Json(data) = Json::<T>::from_request(req, state)
+            .await
+            .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid JSON body"))?;
+        data.validate()
+            .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid JSON body"))?;
+        Ok(Self(data))
     }
 }
 
@@ -103,11 +133,5 @@ impl EntityForSave for Order {
     }
     fn get_oof_shard(&self) -> &str {
         &self.oof_shard
-    }
-}
-
-impl IntoResponse for Order {
-    fn into_response(self) -> Response {
-        (StatusCode::OK, AxumJson(self)).into_response()
     }
 }

@@ -1,20 +1,21 @@
 use serde::{Deserialize, Serialize};
-use sqlx::prelude::FromRow;
+use validator::Validate;
 
 use crate::domain::models::PaymentEntity;
 
-#[derive(Serialize, Deserialize, Debug, FromRow)]
+#[derive(Serialize, Deserialize, Debug, Validate)]
+#[serde(deny_unknown_fields)]
 pub struct Payment {
-    //todo mb create type
+    #[validate(length(min = 1, message = "Can not be empty"))]
     transaction: String,
     request_id: Option<String>,
-    //todo create type for currency
+    #[validate(length(min = 1, message = "Can not be empty"))]
     currency: String,
-    //todo create type for provider
+    #[validate(length(min = 1, message = "Can not be empty"))]
     provider: String,
     amount: i64,
     payment_dt: i64,
-    //todo cretae type for bank
+    #[validate(length(min = 1, message = "Can not be empty"))]
     bank: String,
     delivery_cost: i64,
     goods_total: i64,
