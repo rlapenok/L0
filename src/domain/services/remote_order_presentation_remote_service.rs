@@ -1,12 +1,11 @@
 use std::error::Error;
 
+use crate::{domain::models::EntityForSave, errors::remote_service_error::RemoteServiceError};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow};
 
-use crate::{domain::models::EntityForSave, errors::remote_service_error::RemoteServiceError};
-
 //trait for implementing a service for save/get raw orders from remote repository
-
+#[allow(async_fn_in_trait)]
 pub trait RemoteOrderRepresentationService: Send + Clone {
     async fn save_order<E: EntityForSave + Serialize>(
         &self,
@@ -25,6 +24,7 @@ pub trait RemoteOrderRepresentationService: Send + Clone {
 }
 
 //trait for convert entity to RemoteOrderRepresentationService
+#[allow(async_fn_in_trait)]
 pub trait ToRemoteOrderRepresentationService<T>
 where
     T: RemoteOrderRepresentationService,

@@ -11,7 +11,7 @@ use validator::Validate;
 use super::{delivery::Delivery, item::Item, payment::Payment};
 use crate::{domain::models::EntityForSave, utils::serde_deserde_date_time};
 
-#[derive(Serialize, Deserialize, Debug, Validate)]
+#[derive(Serialize, Deserialize,Debug, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct Order {
     #[validate(length(min = 1, message = "Can not be empty"))]
@@ -36,11 +36,46 @@ pub struct Order {
     #[validate(length(min = 1, message = "Can not be empty"))]
     shardkey: String,
     sm_id: i64,
-    //todo create Date
     #[serde(with = "serde_deserde_date_time")]
     date_created: DateTime<Utc>,
     #[validate(length(min = 1, message = "Can not be empty"))]
     oof_shard: String,
+}
+
+impl Order {
+    pub fn new(
+        order_uid: String,
+        track_number: String,
+        entry: String,
+        delivery: Delivery,
+        payment: Payment,
+        items: Vec<Item>,
+        locale: String,
+        internal_signature: Option<String>,
+        customer_id: String,
+        delivery_service: String,
+        shardkey: String,
+        sm_id: i64,
+        date_created: DateTime<Utc>,
+        oof_shard: String,
+    ) -> Self {
+        Order {
+            order_uid,
+            track_number,
+            entry,
+            delivery,
+            payment,
+            items,
+            locale,
+            internal_signature,
+            customer_id,
+            delivery_service,
+            shardkey,
+            sm_id,
+            date_created,
+            oof_shard,
+        }
+    }
 }
 
 impl<'r> FromRow<'r, PgRow> for Order {

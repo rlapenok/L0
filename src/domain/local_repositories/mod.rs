@@ -11,6 +11,7 @@ pub mod in_file_order_presentation_repository;
 pub mod in_memory_order_presentation_repository;
 
 //trait for generalizing methods for get/save raw orders from file/memory
+#[allow(async_fn_in_trait)]
 pub trait OrderPresentationLocalRepository: Send + Sync + Clone {
     async fn read_raw_orders_from_files(
         &self,

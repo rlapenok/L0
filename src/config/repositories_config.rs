@@ -22,7 +22,7 @@ use crate::{
 };
 
 #[derive(Config, Debug)]
-pub(crate) struct RepositoriesConfig {
+pub struct RepositoriesConfig {
     #[config(nested)]
     postgres_config: PostgresRepoConfig,
     #[config(nested)]
@@ -55,7 +55,7 @@ impl LocalRepoConfig {
 }
 
 #[derive(Config, Debug)]
-pub(crate) struct PostgresRepoConfig {
+pub struct PostgresRepoConfig {
     host: String,
     port: u16,
     login: String,
@@ -92,7 +92,7 @@ impl PostgresRepoConfig {
 }
 
 #[derive(Config, Debug)]
-pub(crate) struct RedisRepoConfig {
+pub struct RedisRepoConfig {
     host: String,
     port: u16,
     password: String,

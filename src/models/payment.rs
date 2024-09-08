@@ -3,7 +3,7 @@ use validator::Validate;
 
 use crate::domain::models::PaymentEntity;
 
-#[derive(Serialize, Deserialize, Debug, Validate)]
+#[derive(Serialize, Deserialize, Validate,Debug)]
 #[serde(deny_unknown_fields)]
 pub struct Payment {
     #[validate(length(min = 1, message = "Can not be empty"))]
@@ -20,6 +20,34 @@ pub struct Payment {
     delivery_cost: i64,
     goods_total: i64,
     custom_fee: i64,
+}
+
+impl Payment {
+    pub fn new(
+        transaction: String,
+        request_id: Option<String>,
+        currency: String,
+        provider: String,
+        amount: i64,
+        payment_dt: i64,
+        bank: String,
+        delivery_cost: i64,
+        goods_total: i64,
+        custom_fee: i64,
+    ) -> Self {
+        Payment {
+            transaction,
+            request_id,
+            currency,
+            provider,
+            amount,
+            payment_dt,
+            bank,
+            delivery_cost,
+            goods_total,
+            custom_fee,
+        }
+    }
 }
 
 impl PaymentEntity for Payment {

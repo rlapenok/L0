@@ -9,7 +9,8 @@ use crate::{
 };
 
 //trait for implementing a service for save/get raw orders from local repository
-pub trait LocalOrderRepresentationService {
+#[allow(async_fn_in_trait)]
+pub trait LocalOrderRepresentationService: Sync + Send {
     //method for read raw orders from files and save in memory
     async fn read_raw_orders_from_file_and_save_in_memory(&self) -> Result<(), LocalServiceErrors>;
     //method for save raw order in file when server graceful shutdown
@@ -21,6 +22,7 @@ pub trait LocalOrderRepresentationService {
 }
 
 //trait for convert entity to LocalOrderRepresentationService
+#[allow(async_fn_in_trait)]
 pub trait ToLocalOrderRepresentationService<T>
 where
     T: LocalOrderRepresentationService,

@@ -13,6 +13,7 @@ pub type Entity =
 pub type RawOrdersInMemory = Arc<Mutex<VecDeque<Box<Entity>>>>;
 
 //trait for save raw orders in memory after up and before the graceful shutdown and insert for background tasks(save raw orders)
+#[allow(async_fn_in_trait)]
 pub trait InMemoryOrderPresentationRepository: Send + Sync + Clone {
     //save row orders from file in memory when server up
     async fn save_raw_orders(&self, orders: (VecDeque<Box<Entity>>, VecDeque<Box<Entity>>));

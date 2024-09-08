@@ -6,6 +6,7 @@ pub type PostgresRawDataFromFile = Option<VecDeque<String>>;
 pub type RedisRawDataInFromFile = Option<VecDeque<String>>;
 
 //trait for save and get raw in files when server up and shutdown
+#[allow(async_fn_in_trait)]
 pub trait InFileOrderPresentationRepository: Send + Sync + Clone {
     //method for save order when server graceful shutdown
     async fn save_orders(&self, raw_orders: VecDeque<String>, file: Destination);

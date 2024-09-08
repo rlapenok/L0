@@ -8,13 +8,14 @@ pub mod postgres_order_presentation_repository;
 pub mod redis_order_presentation_repository;
 
 //trait for generalizing methods for save/get order from remote repository
+#[allow(async_fn_in_trait)]
 pub trait OrderPresentationRemoteRepository {
     //method for save order in Postgres and Redis
     async fn save_order<E: EntityForSave>(
         &self,
         order: &E,
         order_uid: &str,
-        order: &str,
+        value: &str,
     ) -> Result<(), RemoteRepositoryError>;
     //method for get order on order_uid from Redis/Postrges
     async fn get_order<T>(

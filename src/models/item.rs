@@ -3,7 +3,7 @@ use validator::Validate;
 
 use crate::domain::models::ItemEntity;
 
-#[derive(Serialize, Deserialize, Debug, Validate)]
+#[derive(Serialize, Deserialize, Validate,Debug)]
 #[serde(deny_unknown_fields)]
 pub struct Item {
     chrt_id: i64,
@@ -22,6 +22,35 @@ pub struct Item {
     #[validate(length(min = 1, message = "Can not be empty"))]
     brand: String,
     status: i64,
+}
+impl Item {
+    pub fn new(
+        chrt_id: i64,
+        track_number: String,
+        price: i64,
+        rid: String,
+        name: String,
+        sale: i64,
+        size: String,
+        total_price: i64,
+        nm_id: i64,
+        brand: String,
+        status: i64,
+    ) -> Self {
+        Item {
+            chrt_id,
+            track_number,
+            price,
+            rid,
+            name,
+            sale,
+            size,
+            total_price,
+            nm_id,
+            brand,
+            status,
+        }
+    }
 }
 
 impl ItemEntity for Item {

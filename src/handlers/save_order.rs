@@ -2,20 +2,23 @@ use axum::extract::State;
 use tracing::{error, info, instrument};
 
 use crate::{
-    domain::models::EntityForSave,
+    domain::{models::EntityForSave, services::OrderPresentationState},
     errors::remote_service_error::RemoteServiceErrorResponse,
-    infrastructure::services::{LocalSrv, OrderPresentationState, RemoteSrv},
     models::{
         model::{JsonOrder, Order},
         responses::OrderResponse,
     },
 };
+
 //handler for add order in databases
 #[instrument(skip(state,order),fields(order_uid=order.get_order_uid()),name="add_order")]
-pub async fn add_order(
-    State(state): State<OrderPresentationState<RemoteSrv, LocalSrv>>,
+pub async fn save_order<T>(
+    State(state): State<T>,
     JsonOrder(order): JsonOrder<Order>,
-) -> Result<OrderResponse, RemoteServiceErrorResponse> {
+) -> Result<OrderResponse, RemoteServiceErrorResponse>
+where
+    T: OrderPresentationState + Send + Sync + 'static,
+{
     info!("Start save order");
     state.save_order(order).await.inspect_err(|err| {
         error!("Error while save order:{}", err);

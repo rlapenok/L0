@@ -1,18 +1,19 @@
 use order_presentation_local_service::LocalService;
 use order_presentation_remote_service::RemoteService;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow};
 use std::{ops::Deref, sync::Arc, time::Duration};
 use tokio::{signal, sync::Mutex, task::JoinSet, time::interval};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, info_span, Instrument};
+use tracing::{debug, error, info, info_span, instrument, Instrument};
 
 use crate::{
     domain::{
-        models::Destination,
+        models::{Destination, EntityForSave},
         services::{
             local_order_presentation_remote_services::LocalOrderRepresentationService,
             remote_order_presentation_remote_service::RemoteOrderRepresentationService,
+            OrderPresentationState,
         },
     },
     errors::{
@@ -36,9 +37,10 @@ pub mod order_presentation_remote_service;
 pub type RemoteRepo = RemoteRepository<PostgresOrderRepository, RedisOrderRepository>;
 pub type RemoteSrv = RemoteService<RemoteRepo>;
 pub type LocalSrv = LocalService<LocalRepository>;
+pub type ServerSt = ServerState<RemoteSrv, LocalSrv>;
 
 #[derive(Clone)]
-pub struct OrderPresentationState<R, L>
+pub struct ServerState<R, L>
 where
     R: RemoteOrderRepresentationService + Send + Sync + Clone,
     L: LocalOrderRepresentationService + Send + Sync + Clone,
@@ -51,8 +53,12 @@ where
     handle: Arc<Mutex<JoinSet<()>>>,
 }
 
-impl OrderPresentationState<RemoteSrv, LocalSrv> {
-    pub fn new(remote_service: RemoteSrv, local_service: LocalSrv) -> Self {
+impl<R, L> ServerState<R, L>
+where
+    R: RemoteOrderRepresentationService + Send + Sync + Clone,
+    L: LocalOrderRepresentationService + Send + Sync + Clone,
+{
+    pub fn new(remote_service: R, local_service: L) -> Self {
         let token = CancellationToken::new();
         let postgres_cancellation_token = token.child_token();
         let redis_cancellation_token = token.child_token();
@@ -65,67 +71,6 @@ impl OrderPresentationState<RemoteSrv, LocalSrv> {
             handle: Arc::new(Mutex::new(JoinSet::new())),
         }
     }
-
-    pub async fn save_order(&self, order: Order) -> Result<(), RemoteServiceErrorResponse> {
-        match self.remote_service.save_order(&order).await {
-            Ok(_) => Ok(()),
-            Err(service_err) => match &service_err {
-                RemoteServiceError::RemoteRepositoryErrors(repo_err) => match repo_err {
-                    RemoteRepositoryError::PostgresErrors(err) => {
-                        if let Some(err) = err.as_database_error() {
-                            error!("Error while save order in Postgres:{}", err);
-                            Err(RemoteServiceErrorResponse::new(
-                                Handler::GetOrder,
-                                service_err,
-                            ))
-                        } else {
-                            let order = Box::new(order);
-                            info!("Save order in memory....");
-                            self.local_service
-                                .save_in_memory(Destination::Postgres, order)
-                                .await;
-                            info!("Order save in memory for postgres and redis");
-                            Err(RemoteServiceErrorResponse::new(
-                                Handler::AddOrder,
-                                service_err,
-                            ))
-                        }
-                    }
-                    RemoteRepositoryError::RedisErrors(err) => {
-                        error!("Error while save order in Redis:{}", err);
-                        let order = Box::new(order);
-                        info!("Save order in memory....");
-                        self.local_service
-                            .save_in_memory(Destination::Redis, order)
-                            .await;
-                        info!("Order save in memory for redis");
-                        Err(RemoteServiceErrorResponse::new(
-                            Handler::AddOrder,
-                            service_err,
-                        ))
-                    }
-                    RemoteRepositoryError::RedisUniqueErrorAndPosgresOk => Ok(()),
-                },
-                _ => Err(RemoteServiceErrorResponse::new(
-                    Handler::AddOrder,
-                    service_err,
-                )),
-            },
-        }
-    }
-    pub async fn get_order<E>(
-        &self,
-        order_uid: &str,
-    ) -> Result<(E, Option<String>), RemoteServiceErrorResponse>
-    where
-        E: for<'de> Deserialize<'de> + for<'row> FromRow<'row, PgRow> + Send + Unpin,
-    {
-        match self.remote_service.get_order::<E>(order_uid).await {
-            Ok(response) => Ok(response),
-            Err(err) => Err(RemoteServiceErrorResponse::new(Handler::GetOrder, err)),
-        }
-    }
-
     pub async fn graceful_shutdown(&self) {
         signal::ctrl_c()
             .await
@@ -200,8 +145,81 @@ impl OrderPresentationState<RemoteSrv, LocalSrv> {
             debug!("Order not found")
         }
     }
+}
 
-    pub async fn save_raw_orders(&self) {
+pub async fn graceful_shutdown_server(state: ServerState<RemoteSrv, LocalSrv>) {
+    state.graceful_shutdown().await
+}
+
+#[async_trait::async_trait]
+impl OrderPresentationState for ServerState<RemoteSrv, LocalSrv> {
+    async fn get_order<T>(
+        &self,
+        order_uid: &str,
+    ) -> Result<(T, Option<String>), RemoteServiceErrorResponse>
+    where
+        T: for<'de> Deserialize<'de>
+            + for<'row> FromRow<'row, PgRow>
+            + Send
+            + Sync
+            + Unpin
+            + EntityForSave
+            + Serialize,
+    {
+        match self.remote_service.get_order::<T>(order_uid).await {
+            Ok(response) => Ok(response),
+            Err(err) => Err(RemoteServiceErrorResponse::new(Handler::GetOrder, err)),
+        }
+    }
+    #[instrument(skip(self, order), name = "OrderPresentationState::save_order")]
+    async fn save_order(&self, order: Order) -> Result<(), RemoteServiceErrorResponse> {
+        match self.remote_service.save_order(&order).await {
+            Ok(_) => Ok(()),
+            Err(service_err) => match &service_err {
+                RemoteServiceError::RemoteRepositoryErrors(repo_err) => match repo_err {
+                    RemoteRepositoryError::PostgresErrors(err) => {
+                        if let Some(err) = err.as_database_error() {
+                            error!("Error while save order in Postgres:{}", err);
+                            Err(RemoteServiceErrorResponse::new(
+                                Handler::GetOrder,
+                                service_err,
+                            ))
+                        } else {
+                            let order = Box::new(order);
+                            info!("Save order in memory....");
+                            self.local_service
+                                .save_in_memory(Destination::Postgres, order)
+                                .await;
+                            info!("Order save in memory for postgres and redis");
+                            Err(RemoteServiceErrorResponse::new(
+                                Handler::AddOrder,
+                                service_err,
+                            ))
+                        }
+                    }
+                    RemoteRepositoryError::RedisErrors(err) => {
+                        error!("Error while save order in Redis:{}", err);
+                        let order = Box::new(order);
+                        info!("Save order in memory....");
+                        self.local_service
+                            .save_in_memory(Destination::Redis, order)
+                            .await;
+                        info!("Order save in memory for redis");
+                        Err(RemoteServiceErrorResponse::new(
+                            Handler::AddOrder,
+                            service_err,
+                        ))
+                    }
+                    RemoteRepositoryError::RedisUniqueErrorAndPosgresOk => Ok(()),
+                },
+                _ => Err(RemoteServiceErrorResponse::new(
+                    Handler::AddOrder,
+                    service_err,
+                )),
+            },
+        }
+    }
+    async fn save_raw_orders(&self) {
         info!("Starting to read raw orders from files and save in memory");
         self.local_service
             .read_raw_orders_from_file_and_save_in_memory()
@@ -262,8 +280,4 @@ impl OrderPresentationState<RemoteSrv, LocalSrv> {
         }.instrument(info_span!("RedisBackGroundTask::thread"));
         guard.spawn(background_task2);
     }
-}
-
-pub async fn graceful_shutdown_server(state: OrderPresentationState<RemoteSrv, LocalSrv>) {
-    state.graceful_shutdown().await
 }

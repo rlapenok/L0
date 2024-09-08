@@ -3,7 +3,7 @@ use validator::Validate;
 
 use crate::domain::models::DeliveriEntity;
 
-#[derive(Serialize, Deserialize, Debug, Validate)]
+#[derive(Serialize, Deserialize, Validate,Debug)]
 #[serde(deny_unknown_fields)]
 pub struct Delivery {
     #[validate(length(min = 1, message = "Can not be empty"))]
@@ -20,6 +20,27 @@ pub struct Delivery {
     region: String,
     #[validate(length(min = 1, message = "Can not be empty"))]
     email: String,
+}
+impl Delivery {
+    pub fn new(
+        name: String,
+        phone: String,
+        zip: String,
+        city: String,
+        address: String,
+        region: String,
+        email: String,
+    ) -> Self {
+        Delivery {
+            name,
+            phone,
+            zip,
+            city,
+            address,
+            region,
+            email,
+        }
+    }
 }
 
 impl DeliveriEntity for Delivery {

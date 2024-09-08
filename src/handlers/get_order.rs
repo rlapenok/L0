@@ -2,8 +2,8 @@ use axum::extract::{Query, State};
 use tracing::{error, info, instrument};
 
 use crate::{
+    domain::services::OrderPresentationState,
     errors::remote_service_error::RemoteServiceErrorResponse,
-    infrastructure::services::{LocalSrv, OrderPresentationState, RemoteSrv},
     models::{
         model::Order,
         query_params::QueryParams,
@@ -12,10 +12,13 @@ use crate::{
 };
 //handler for get order on order_uid
 #[instrument(skip(state,params),fields(order_uid=params.get_order_uid()),name="get_order")]
-pub async fn get_orders(
-    State(state): State<OrderPresentationState<RemoteSrv, LocalSrv>>,
+pub async fn get_order<T>(
+    State(state): State<T>,
     Query(params): Query<QueryParams>,
-) -> Result<OrderResponse, RemoteServiceErrorResponse> {
+) -> Result<OrderResponse, RemoteServiceErrorResponse>
+where
+    T: OrderPresentationState + Clone + Send + Sync,
+{
     let order_uid = params.get_order_uid();
     info!("Start get order");
     let result = state
