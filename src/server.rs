@@ -1,5 +1,5 @@
 use std::{env, error::Error};
-
+use clap::Parser;
 use axum::{
     extract::{MatchedPath, Request},
     serve,
@@ -15,11 +15,19 @@ use tower_http::trace::TraceLayer;
 use tracing::info_span;
 
 
+
+#[derive(Parser)]
+struct Cli{
+    address:String
+}
+
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let args = env::args().collect::<Vec<String>>();
+    let address=Cli::parse().address;
+    /*let args = env::args().collect::<Vec<String>>();
     args[1].trim().find("address").expect("Pass flag 'address'");
-    let address = args[2].trim();
+    let address = args[2].trim();*/
 
     let app_config = AppConfig::load()?;
     app_config.build_tracing()?;

@@ -1,5 +1,5 @@
-migrations_manual/
 /target
+server/target
 *.pdf
 .env
 *.json

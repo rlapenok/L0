@@ -1,10 +1,10 @@
 [package]
-name = "L0"
+name = "server"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = "0.7.5"
+axum = { version = "0.7.5", features = ["macros","tracing"] }
 serde_json = "1.0.128"
 redis = "0.26.1"
 deadpool-redis = "0.16.0"
@@ -12,6 +12,21 @@ tracing = "0.1.40"
 async-trait = "0.1.82"
 tokio-util = "0.7.12"
 downcast-rs = "1.2.1"
+mockall = "0.13.0"
+clap = { version = "4.5.17", features = ["derive"] }
+reqwest = { version = "0.12.7", features = ["json"] }
+
+[[bin]]
+name="server"
+path="src/server.rs"
+
+
+[[bin]]
+name="script"
+path="src/script.rs"
+
+
+
 
 [dependencies.confique]
 version="0.2.5"
@@ -22,7 +37,7 @@ version = "1.40.0"
 features = ["macros", "rt-multi-thread","signal","time","sync","fs","macros"]
 
 [dependencies.serde]
-version="1.0.209"
+version="1.0.210"
 features=["derive"]
 
 [dependencies.chrono]
@@ -45,3 +60,7 @@ features = ["trace"]
 [dependencies.validator]
  version = "0.18.1" 
  features = ["derive"]
+
+[dev-dependencies.tower]
+ version = "0.5.0" 
+ features = ["util"]
