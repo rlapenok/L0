@@ -26,7 +26,7 @@ pub struct AppConfig {
 impl AppConfig {
     pub fn load() -> Result<Self, Box<dyn Error>> {
         //todo get path from env
-        let app_config = Self::from_file("../config.toml")?;
+        let app_config = Self::from_file("./config.toml")?;
         Ok(app_config)
     }
     pub fn build_tracing(&self) -> Result<(), Box<dyn Error>> {

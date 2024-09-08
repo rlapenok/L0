@@ -1,4 +1,4 @@
-use std::{env, error::Error};
+use std::error::Error;
 use clap::Parser;
 use axum::{
     extract::{MatchedPath, Request},
